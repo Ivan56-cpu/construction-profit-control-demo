@@ -1,0 +1,12 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {previewOutlookDispatch} from './outlook-gateway.mjs';
+const policy={productionApproved:true,legalReviewApproved:true,noticeVersion:'1',consentVersion:'1',purpose:'updates'};
+const record={email:'test@example.invalid',status:'confirmed',suppressed:false,noticeVersion:'1',consentVersion:'1',purpose:'updates',grantedAt:'2020-01-01T00:00:00Z',confirmedAt:'2020-01-02T00:00:00Z',validUntil:'2099-01-01T00:00:00Z',evidenceId:'synthetic'};
+const run=(r=record,p=policy,recipient=record.email)=>previewOutlookDispatch({recipient,record:r,policy:p}).status;
+test('valid synthetic record remains dry-run',()=>assert.equal(run(),'dry-run'));
+for(const [name,patch] of Object.entries({revoked:{withdrawnAt:'2021-01-01'},suppressed:{suppressed:true},pending:{status:'requested'},expired:{validUntil:'2021-01-01'},wrongPurpose:{purpose:'other'},wrongVersion:{noticeVersion:'2'},missingEvidence:{evidenceId:''},invalidDate:{confirmedAt:'invalid'}}))test(name,()=>assert.equal(run({...record,...patch}),'blocked'));
+test('missing record',()=>assert.equal(run(null),'blocked'));
+test('legal gate',()=>assert.equal(run(record,{...policy,legalReviewApproved:false}),'blocked'));
+test('production gate',()=>assert.equal(run(record,{...policy,productionApproved:false}),'blocked'));
+test('recipient mismatch',()=>assert.equal(run(record,policy,'other@example.invalid'),'blocked'));
